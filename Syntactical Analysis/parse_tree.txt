@@ -1,0 +1,11 @@
+<Program>
+  <Declaration>
+    a
+    b
+    c
+  <Statement>
+    <Assignment>
+      a
+      b
+      c
+      +
