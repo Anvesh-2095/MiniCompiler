@@ -1,0 +1,4 @@
+PUSH b
+PUSH c
+ADD
+STORE a
