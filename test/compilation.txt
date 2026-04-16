@@ -12,3 +12,6 @@ gcc y.tab.c -o parser
 
 gcc semantic.c -o semantic
 ./semantic
+
+gcc icg.c -o icg
+./icg

@@ -6,3 +6,5 @@ code motion -- move out of loop -- not tested
 dead code elimination -- not working
 
 common sub-expression evaluation -- works
+
+algebric simplification

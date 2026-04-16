@@ -5,12 +5,21 @@
 
 void yyerror(const char *s);
 int yylex();
-FILE *tree_file;
+
+FILE *sym_file, *usage_file, *ir_file, *tree_file;
 
 int indent = 0;
 void print_node(const char* node_name) {
     for (int i = 0; i < indent; i++) fprintf(tree_file, "  ");
     fprintf(tree_file, "%s\n", node_name);
+}
+
+/* Label Generator for If/While */
+int label_count = 0;
+char* new_label() {
+    char* l = malloc(10);
+    sprintf(l, "L%d", label_count++);
+    return l;
 }
 
 #define PUSH indent++
@@ -30,13 +39,15 @@ void print_node(const char* node_name) {
 %nonassoc LOWER_THAN_ELSE
 %nonassoc KEYWORD_ELSE
 
+/* Define types for expressions so they return their names/values */
+%type <str> expr term factor rel_expr
+
 %%
 
 program:
     { print_node("<Program>"); PUSH; } decl_list stmt_list { POP; }
     ;
 
-/* Declarations */
 decl_list:
     decl_list decl
     | /* empty */
@@ -47,11 +58,16 @@ decl:
     ;
 
 id_list:
-    IDENTIFIER { print_node($1); }
-    | IDENTIFIER { print_node($1); } COMMA id_list
+    IDENTIFIER { 
+        print_node($1); 
+        fprintf(sym_file, "%s int\n", $1); 
+    }
+    | IDENTIFIER { 
+        print_node($1); 
+        fprintf(sym_file, "%s int\n", $1); 
+    } COMMA id_list
     ;
 
-/* Statements */
 stmt_list:
     stmt_list stmt
     | /* empty */
@@ -72,52 +88,108 @@ block:
     LBRACE { print_node("{"); PUSH; } stmt_list RBRACE { POP; print_node("}"); }
     ;
 
+/* Unified Assignment Rule */
 assignment_stmt:
-    { print_node("<Assignment>"); PUSH; } IDENTIFIER { print_node($2); } OP_ASSIGN expr SEMICOLON { POP; }
+    IDENTIFIER OP_ASSIGN expr SEMICOLON { 
+        print_node("<Assignment>");
+        PUSH; print_node($1); POP;
+        fprintf(usage_file, "%s\n", $1); 
+        fprintf(ir_file, "STORE %s\n", $1); 
+    }
     ;
 
 if_stmt:
-    { print_node("<If-Statement>"); PUSH; } KEYWORD_IF LPAREN rel_expr RPAREN stmt else_part { POP; }
+    KEYWORD_IF LPAREN rel_expr RPAREN {
+        /* 1. Visual Tree Logic */
+        print_node("<If-Statement>");
+        print_node("<Then-Block>");
+        PUSH;
+
+        /* 2. Functional TAC Logic */
+        char *l_else = new_label();
+        fprintf(ir_file, "JZ %s %s\n", $3, l_else);
+        $<str>$ = l_else; /* Store else label in position 5 */
+    } 
+    stmt {
+        /* 1. Visual Tree Logic */
+        POP;
+
+        /* 2. Functional TAC Logic */
+        char *l_end = new_label();
+        fprintf(ir_file, "JMP %s\n", l_end);
+        fprintf(ir_file, "LABEL %s\n", $<str>5); /* Print Else label */
+        $<str>$ = l_end; /* Store end label in position 7 */
+    } 
+    else_part {
+        /* 2. Functional TAC Logic */
+        fprintf(ir_file, "LABEL %s\n", $<str>7); /* Print End label */
+    }
     ;
 
 else_part:
-    KEYWORD_ELSE { print_node("else"); } stmt
-    | %prec LOWER_THAN_ELSE 
+    KEYWORD_ELSE {
+        print_node("<Else-Block>");
+        PUSH;
+    } stmt {
+        POP;
+    }
+    | %prec LOWER_THAN_ELSE /* empty */
     ;
+
 
 while_stmt:
-    { print_node("<While-Loop>"); PUSH; } KEYWORD_WHILE LPAREN rel_expr RPAREN stmt { POP; }
+    KEYWORD_WHILE {
+        char *l_start = new_label();
+        fprintf(ir_file, "LABEL %s\n", l_start);
+        $<str>$ = l_start;
+    } LPAREN rel_expr RPAREN {
+        char *l_end = new_label();
+        fprintf(ir_file, "JZ %s %s\n", $4, l_end);
+        $<str>$ = l_end;
+    } stmt {
+        fprintf(ir_file, "JMP %s\n", $<str>2);
+        fprintf(ir_file, "LABEL %s\n", $<str>6);
+        print_node("<While-Loop>");
+    }
     ;
 
-/* Expressions */
+/* Expressions and TAC */
 expr:
-    expr OP_ADD term { print_node("+"); }
-    | expr OP_SUB term { print_node("-"); }
-    | term
+    expr OP_ADD term { print_node("+"); fprintf(ir_file, "ADD\n"); $$ = "temp"; }
+    | expr OP_SUB term { print_node("-"); fprintf(ir_file, "SUB\n"); $$ = "temp"; }
+    | term { $$ = $1; }
     ;
 
 term:
-    term OP_MUL factor { print_node("*"); }
-    | term OP_DIV factor { print_node("/"); }
-    | factor
+    term OP_MUL factor { print_node("*"); fprintf(ir_file, "MUL\n"); $$ = "temp"; }
+    | term OP_DIV factor { print_node("/"); fprintf(ir_file, "DIV\n"); $$ = "temp"; }
+    | factor { $$ = $1; }
     ;
 
 factor:
-    IDENTIFIER { print_node($1); }
-    | NUMBER { print_node($1); }
-    | LPAREN expr RPAREN
+    IDENTIFIER { 
+        print_node($1); 
+        fprintf(usage_file, "%s\n", $1); 
+        fprintf(ir_file, "PUSH %s\n", $1); 
+        $$ = $1;
+    }
+    | NUMBER { 
+        print_node($1); 
+        fprintf(ir_file, "PUSH %s\n", $1); 
+        $$ = $1;
+    }
+    | LPAREN expr RPAREN { $$ = $2; }
     ;
 
 rel_expr:
-    expr OP_LT expr { print_node("<"); }
-    | expr OP_GT expr { print_node(">"); }
-    | expr OP_EQ expr { print_node("=="); }
-    | expr OP_NE expr { print_node("!="); }
+    expr OP_LT expr { print_node("<"); fprintf(ir_file, "LT\n"); $$ = "temp"; }
+    | expr OP_GT expr { print_node(">"); fprintf(ir_file, "GT\n"); $$ = "temp"; }
+    | expr OP_EQ expr { print_node("=="); fprintf(ir_file, "EQ\n"); $$ = "temp"; }
+    | expr OP_NE expr { print_node("!="); fprintf(ir_file, "NE\n"); $$ = "temp"; }
     ;
 
 %%
 
-/* Pipeline Reader for tokens.txt */
 int yylex() {
     char type[50], val[50];
     if (scanf("%s", type) == EOF) return 0;
@@ -153,11 +225,22 @@ void yyerror(const char *s) {
 
 int main() {
     tree_file = fopen("parse_tree.txt", "w");
-    if (!tree_file) return 1;
+    sym_file = fopen("symtab.txt", "w");
+    usage_file = fopen("usage_log.txt", "w");
+    ir_file = fopen("ir_input.txt", "w");
+
+    if (!tree_file || !sym_file || !usage_file || !ir_file) {
+        printf("Error: Could not create output files.\n");
+        return 1;
+    }
 
     yyparse();
 
     fclose(tree_file);
-    printf("Phase 2: Syntax Analysis Complete. Output in parse_tree.txt\n");
+    fclose(sym_file);
+    fclose(usage_file);
+    fclose(ir_file);
+
+    printf("Phase 2 Complete. Control flow and expressions finalized.\n");
     return 0;
 }

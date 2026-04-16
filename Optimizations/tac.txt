@@ -1,0 +1,7 @@
+i = 0
+L1:
+t1 = a + b
+t2 = t1 * i
+sum = sum + t2
+i = i + 1
+if i < n goto L1
