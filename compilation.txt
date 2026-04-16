@@ -15,3 +15,9 @@ gcc semantic.c -o semantic
 
 gcc icg.c -o icg
 ./icg
+
+gcc code_optimizer.c -o optimizer
+./optimizer
+
+gcc machine_code_gen.c -o tcm
+./tmc
