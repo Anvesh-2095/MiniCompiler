@@ -84,7 +84,8 @@ void print_TAC(char *msg) {
 
 /* ---------- Constant Folding ---------- */
 
-void constant_folding() {
+int constant_folding() {
+    int changed = 0;
     printf("\n--- Constant Folding ---\n");
 
     for (int i = 0; i < n; i++) {
@@ -108,18 +109,22 @@ void constant_folding() {
             else if (strcmp(code[i].op, "!=") == 0) res = a != b;
             else continue;
 
-            printf("Folding: %s = %d %s %d → %d\n",
+            printf("Folding: %s = %d %s %d -> %d\n",
                    code[i].lhs, a, code[i].op, b, res);
 
             sprintf(code[i].op1, "%d", res);
             code[i].is_binary = 0;
+            changed = 1;
         }
     }
+
+    return changed;
 }
 
 /* ---------- Constant Propagation ---------- */
 
-void constant_propagation() {
+int constant_propagation() {
+    int changed = 0;
     printf("\n--- Constant Propagation ---\n");
 
     for (int i = 0; i < n; i++) {
@@ -134,94 +139,108 @@ void constant_propagation() {
                 if (code[j].is_control) continue;
 
                 if (strcmp(code[j].op1, var) == 0) {
-                    printf("Propagating: %s → %s in %s\n",
+                    printf("Propagating: %s -> %s in %s\n",
                            var, code[i].op1, code[j].lhs);
                     strcpy(code[j].op1, code[i].op1);
+                    changed = 1;
                 }
 
                 if (code[j].is_binary &&
                     strcmp(code[j].op2, var) == 0) {
-                    printf("Propagating: %s → %s in %s\n",
+                    printf("Propagating: %s -> %s in %s\n",
                            var, code[i].op1, code[j].lhs);
                     strcpy(code[j].op2, code[i].op1);
+                    changed = 1;
                 }
             }
         }
     }
+
+    return changed;
 }
 
 /* ---------- Algebraic Simplification ---------- */
 
-void algebraic_simplification() {
+int algebraic_simplification() {
+    int changed = 0;
     printf("\n--- Algebraic Simplification ---\n");
 
     for (int i = 0; i < n; i++) {
 
         if (code[i].is_control || !code[i].is_binary) continue;
 
-        // x + 0 = x
+        // x + 0
         if (strcmp(code[i].op, "+") == 0) {
             if (strcmp(code[i].op2, "0") == 0) {
-                printf("Simplify: %s = %s + 0 → %s\n",
+                printf("Simplify: %s = %s + 0 -> %s\n",
                        code[i].lhs, code[i].op1, code[i].op1);
                 code[i].is_binary = 0;
+                changed = 1;
             }
             else if (strcmp(code[i].op1, "0") == 0) {
-                printf("Simplify: %s = 0 + %s → %s\n",
+                printf("Simplify: %s = 0 + %s -> %s\n",
                        code[i].lhs, code[i].op2, code[i].op2);
                 strcpy(code[i].op1, code[i].op2);
                 code[i].is_binary = 0;
+                changed = 1;
             }
         }
 
-        // x * 1 = x
+        // x * 1
         if (strcmp(code[i].op, "*") == 0) {
             if (strcmp(code[i].op2, "1") == 0) {
-                printf("Simplify: %s = %s * 1 → %s\n",
+                printf("Simplify: %s = %s * 1 -> %s\n",
                        code[i].lhs, code[i].op1, code[i].op1);
                 code[i].is_binary = 0;
+                changed = 1;
             }
             else if (strcmp(code[i].op1, "1") == 0) {
-                printf("Simplify: %s = 1 * %s → %s\n",
+                printf("Simplify: %s = 1 * %s -> %s\n",
                        code[i].lhs, code[i].op2, code[i].op2);
                 strcpy(code[i].op1, code[i].op2);
                 code[i].is_binary = 0;
+                changed = 1;
             }
         }
 
-        // x * 0 = 0
+        // x * 0
         if (strcmp(code[i].op, "*") == 0) {
             if (strcmp(code[i].op1, "0") == 0 ||
                 strcmp(code[i].op2, "0") == 0) {
-                printf("Simplify: %s = %s * %s → 0\n",
+                printf("Simplify: %s = %s * %s -> 0\n",
                        code[i].lhs, code[i].op1, code[i].op2);
                 strcpy(code[i].op1, "0");
                 code[i].is_binary = 0;
+                changed = 1;
             }
         }
 
-        // x - 0 = x
+        // x - 0
         if (strcmp(code[i].op, "-") == 0 &&
             strcmp(code[i].op2, "0") == 0) {
-            printf("Simplify: %s = %s - 0 → %s\n",
+            printf("Simplify: %s = %s - 0 -> %s\n",
                    code[i].lhs, code[i].op1, code[i].op1);
             code[i].is_binary = 0;
+            changed = 1;
         }
 
-        // x / 1 = x
+        // x / 1
         if (strcmp(code[i].op, "/") == 0 &&
             strcmp(code[i].op2, "1") == 0) {
-            printf("Simplify: %s = %s / 1 → %s\n",
+            printf("Simplify: %s = %s / 1 -> %s\n",
                    code[i].lhs, code[i].op1, code[i].op1);
             code[i].is_binary = 0;
+            changed = 1;
         }
     }
+
+    return changed;
 }
 
-/* ---------- Common Subexpression ---------- */
+/* ---------- CSE ---------- */
 
 void common_subexpr() {
-    printf("\n--- Common Subexpression Elimination ---\n");
+    printf("\n--- CSE ---\n");
 
     for (int i = 0; i < n; i++) {
         if (code[i].is_control || !code[i].is_binary) continue;
@@ -235,7 +254,7 @@ void common_subexpr() {
                 strcmp(code[i].op2, code[j].op2) == 0 &&
                 strcmp(code[i].op, code[j].op) == 0) {
 
-                printf("Eliminating duplicate: %s reused for %s\n",
+                printf("CSE: %s reused for %s\n",
                        code[i].lhs, code[j].lhs);
 
                 strcpy(code[j].op1, code[i].lhs);
@@ -250,19 +269,18 @@ void common_subexpr() {
 int main() {
 
     read_TAC();
-
     print_TAC("----- ORIGINAL TAC -----");
 
-    // Multi-pass optimization
-    for (int i = 0; i < 2; i++) {
-        constant_folding();
-        constant_propagation();
-    }
+    int changed;
 
-    print_TAC("After Folding + Propagation");
+    do {
+        changed = 0;
+        changed |= constant_folding();
+        changed |= constant_propagation();
+        changed |= algebraic_simplification();
+    } while (changed);
 
-    algebraic_simplification();
-    print_TAC("After Algebraic Simplification");
+    print_TAC("After Full Optimization");
 
     common_subexpr();
     print_TAC("After CSE");
@@ -271,18 +289,15 @@ int main() {
 
     for (int i = 0; i < n; i++) {
 
-        if (code[i].is_control) {
+        if (code[i].is_control)
             fprintf(out, "%s\n", code[i].raw);
-        }
-        else if (code[i].is_binary) {
+        else if (code[i].is_binary)
             fprintf(out, "%s = %s %s %s\n",
                     code[i].lhs, code[i].op1,
                     code[i].op, code[i].op2);
-        }
-        else {
+        else
             fprintf(out, "%s = %s\n",
                     code[i].lhs, code[i].op1);
-        }
     }
 
     fclose(out);
