@@ -19,5 +19,5 @@ gcc icg.c -o icg
 gcc code_optimizer.c -o optimizer
 ./optimizer
 
-gcc machine_code_gen.c -o tcm
+gcc machine_code_gen.c -o tmc
 ./tmc

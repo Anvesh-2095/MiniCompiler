@@ -3,9 +3,73 @@
     a
     b
     c
+    i
+    n
+    sum
   <Statement>
+    5
     <Assignment>
       a
+  <Statement>
+    10
+    <Assignment>
       b
+  <Statement>
+    2
+    <Assignment>
       c
-      +
+  <Statement>
+    0
+    <Assignment>
+      i
+  <Statement>
+    5
+    <Assignment>
+      n
+  <Statement>
+    0
+    <Assignment>
+      sum
+  <Statement>
+    i
+    n
+    <
+    <Statement>
+      {
+        <Statement>
+          a
+          b
+          <
+          <If-Statement>
+          <Then-Block>
+            <Statement>
+              {
+                <Statement>
+                  sum
+                  a
+                  c
+                  +
+                  +
+                  <Assignment>
+                    sum
+              }
+          <Else-Block>
+            <Statement>
+              {
+                <Statement>
+                  sum
+                  b
+                  c
+                  *
+                  +
+                  <Assignment>
+                    sum
+              }
+        <Statement>
+          i
+          1
+          +
+          <Assignment>
+            i
+      }
+    <While-Loop>

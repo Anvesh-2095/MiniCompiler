@@ -1,0 +1,6 @@
+a int
+b int
+c int
+i int
+n int
+sum int
