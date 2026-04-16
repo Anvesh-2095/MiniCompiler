@@ -1,0 +1,8 @@
+constant propagation -- replace variable with known constants -- works
+constant folding -- solve for constants -- works
+
+code motion -- move out of loop -- not tested
+
+dead code elimination -- not working
+
+common sub-expression evaluation -- works
