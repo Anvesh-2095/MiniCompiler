@@ -87,6 +87,6 @@ int main() {
 
     fclose(in);
     fclose(out);
-    printf("saved to 'target.s'\n");
+    printf("Compilation successful! Assembly saved to 'target.s'\n");
     return 0;
 }
