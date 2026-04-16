@@ -63,57 +63,57 @@ void generate_code() {
         if (code[i].is_binary) {
 
             // Load operands
-            if (is_number(code[i].op1)) {
-                printf("# Load immediate %s into x2\n", code[i].op1);
-                fprintf(out, "# immediate %s\n", code[i].op1);
+            if (!is_number(code[i].op1)) {
+                printf("LW R1, %s\n", code[i].op1);
+                fprintf(out, "LW R1, %s\n", code[i].op1);
             } else {
-                printf("LW x2, %s\n", code[i].op1);
-                fprintf(out, "LW x2, %s\n", code[i].op1);
+                printf("# immediate %s\n", code[i].op1);
+                fprintf(out, "# immediate %s\n", code[i].op1);
             }
 
-            if (is_number(code[i].op2)) {
-                printf("# Load immediate %s into x3\n", code[i].op2);
-                fprintf(out, "# immediate %s\n", code[i].op2);
+            if (!is_number(code[i].op2)) {
+                printf("LW R2, %s\n", code[i].op2);
+                fprintf(out, "LW R2, %s\n", code[i].op2);
             } else {
-                printf("LW x3, %s\n", code[i].op2);
-                fprintf(out, "LW x3, %s\n", code[i].op2);
+                printf("# immediate %s\n", code[i].op2);
+                fprintf(out, "# immediate %s\n", code[i].op2);
             }
 
             // Operation
             if (strcmp(code[i].op, "+") == 0) {
-                printf("ADD x1, x2, x3\n");
-                fprintf(out, "ADD x1, x2, x3\n");
+                printf("ADD R0, R1, R2\n");
+                fprintf(out, "ADD R0, R1, R2\n");
             } 
             else if (strcmp(code[i].op, "-") == 0) {
-                printf("SUB x1, x2, x3\n");
-                fprintf(out, "SUB x1, x2, x3\n");
+                printf("SUB R0, R1, R2\n");
+                fprintf(out, "SUB R0, R1, R2\n");
             } 
             else if (strcmp(code[i].op, "*") == 0) {
-                printf("MUL x1, x2, x3\n");
-                fprintf(out, "MUL x1, x2, x3\n");
+                printf("MUL R0, R1, R2\n");
+                fprintf(out, "MUL R0, R1, R2\n");
             } 
             else if (strcmp(code[i].op, "/") == 0) {
-                printf("DIV x1, x2, x3\n");
-                fprintf(out, "DIV x1, x2, x3\n");
+                printf("DIV R0, R1, R2\n");
+                fprintf(out, "DIV R0, R1, R2\n");
             }
 
             // Store result
-            printf("SW x1, %s\n", code[i].lhs);
-            fprintf(out, "SW x1, %s\n", code[i].lhs);
+            printf("SW R0, %s\n", code[i].lhs);
+            fprintf(out, "SW R0, %s\n", code[i].lhs);
         }
 
         else {
-            // Simple assignment
+            // Assignment
 
-            if (is_number(code[i].op1)) {
-                printf("# Assign constant %s to %s\n", code[i].op1, code[i].lhs);
-                fprintf(out, "# %s = %s\n", code[i].lhs, code[i].op1);
+            if (!is_number(code[i].op1)) {
+                printf("LW R0, %s\n", code[i].op1);
+                printf("SW R0, %s\n", code[i].lhs);
+
+                fprintf(out, "LW R0, %s\n", code[i].op1);
+                fprintf(out, "SW R0, %s\n", code[i].lhs);
             } else {
-                printf("LW x1, %s\n", code[i].op1);
-                printf("SW x1, %s\n", code[i].lhs);
-
-                fprintf(out, "LW x1, %s\n", code[i].op1);
-                fprintf(out, "SW x1, %s\n", code[i].lhs);
+                printf("# %s = %s\n", code[i].lhs, code[i].op1);
+                fprintf(out, "# %s = %s\n", code[i].lhs, code[i].op1);
             }
         }
 
@@ -128,10 +128,7 @@ void generate_code() {
 /* ---------- MAIN ---------- */
 
 int main() {
-
     read_TAC();
-
     generate_code();
-
     return 0;
 }
