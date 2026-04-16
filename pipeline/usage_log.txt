@@ -1,0 +1,13 @@
+a
+b
+c
+a
+b
+a
+c
+b
+result
+b
+a
+c
+result

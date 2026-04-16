@@ -6,16 +6,20 @@
 void yyerror(const char *s);
 int yylex();
 
-/* File Pointers for the Pipeline */
-FILE *sym_file;     /* For Phase 3 (Declarations) */
-FILE *usage_file;   /* For Phase 3 (Undeclared Check) */
-FILE *ir_file;      /* For Phase 4 (ICG Input) */
-FILE *tree_file;    /* For your Syntax Analysis marks */
+FILE *sym_file, *usage_file, *ir_file, *tree_file;
 
 int indent = 0;
 void print_node(const char* node_name) {
     for (int i = 0; i < indent; i++) fprintf(tree_file, "  ");
     fprintf(tree_file, "%s\n", node_name);
+}
+
+/* Label Generator for If/While */
+int label_count = 0;
+char* new_label() {
+    char* l = malloc(10);
+    sprintf(l, "L%d", label_count++);
+    return l;
 }
 
 #define PUSH indent++
@@ -35,13 +39,15 @@ void print_node(const char* node_name) {
 %nonassoc LOWER_THAN_ELSE
 %nonassoc KEYWORD_ELSE
 
+/* Define types for expressions so they return their names/values */
+%type <str> expr term factor rel_expr
+
 %%
 
 program:
     { print_node("<Program>"); PUSH; } decl_list stmt_list { POP; }
     ;
 
-/* Declarations */
 decl_list:
     decl_list decl
     | /* empty */
@@ -62,7 +68,6 @@ id_list:
     } COMMA id_list
     ;
 
-/* Statements */
 stmt_list:
     stmt_list stmt
     | /* empty */
@@ -83,57 +88,82 @@ block:
     LBRACE { print_node("{"); PUSH; } stmt_list RBRACE { POP; print_node("}"); }
     ;
 
-assignment_stmt:
-    { print_node("<Assignment>"); PUSH; } 
-    IDENTIFIER { 
-        print_node($2); 
-        fprintf(usage_file, "%s\n", $2); 
-    } 
-    OP_ASSIGN expr SEMICOLON { 
-        /* Corrected: $2 changed to $2's identifier which is $1 in this rule */
-        /* However, since this rule starts with an action {print_node}, 
-           the indexes shift. It is safer to use the names. */
-        fprintf(ir_file, "STORE %s\n", $2); 
-        POP; 
-    }
-    ;
-
-/* Note: In Yacc, if you put a { action } in the middle of a rule, 
-   it counts as a position. To keep it simple, I removed the mid-rule 
-   print for assignment to fix your error. */
-
+/* Unified Assignment Rule */
 assignment_stmt:
     IDENTIFIER OP_ASSIGN expr SEMICOLON { 
         print_node("<Assignment>");
+        PUSH; print_node($1); POP;
         fprintf(usage_file, "%s\n", $1); 
-        fprintf(ir_file, "STORE %s\n", $1); /* $1 is IDENTIFIER */
+        fprintf(ir_file, "STORE %s\n", $1); 
     }
     ;
 
 if_stmt:
-    KEYWORD_IF LPAREN rel_expr RPAREN stmt else_part { print_node("<If-Statement>"); }
+    KEYWORD_IF LPAREN rel_expr RPAREN {
+        /* 1. Visual Tree Logic */
+        print_node("<If-Statement>");
+        print_node("<Then-Block>");
+        PUSH;
+
+        /* 2. Functional TAC Logic */
+        char *l_else = new_label();
+        fprintf(ir_file, "JZ %s %s\n", $3, l_else);
+        $<str>$ = l_else; /* Store else label in position 5 */
+    } 
+    stmt {
+        /* 1. Visual Tree Logic */
+        POP;
+
+        /* 2. Functional TAC Logic */
+        char *l_end = new_label();
+        fprintf(ir_file, "JMP %s\n", l_end);
+        fprintf(ir_file, "LABEL %s\n", $<str>5); /* Print Else label */
+        $<str>$ = l_end; /* Store end label in position 7 */
+    } 
+    else_part {
+        /* 2. Functional TAC Logic */
+        fprintf(ir_file, "LABEL %s\n", $<str>7); /* Print End label */
+    }
     ;
 
 else_part:
-    KEYWORD_ELSE stmt
-    | %prec LOWER_THAN_ELSE 
+    KEYWORD_ELSE {
+        print_node("<Else-Block>");
+        PUSH;
+    } stmt {
+        POP;
+    }
+    | %prec LOWER_THAN_ELSE /* empty */
     ;
+
 
 while_stmt:
-    KEYWORD_WHILE LPAREN rel_expr RPAREN stmt { print_node("<While-Loop>"); }
+    KEYWORD_WHILE {
+        char *l_start = new_label();
+        fprintf(ir_file, "LABEL %s\n", l_start);
+        $<str>$ = l_start;
+    } LPAREN rel_expr RPAREN {
+        char *l_end = new_label();
+        fprintf(ir_file, "JZ %s %s\n", $4, l_end);
+        $<str>$ = l_end;
+    } stmt {
+        fprintf(ir_file, "JMP %s\n", $<str>2);
+        fprintf(ir_file, "LABEL %s\n", $<str>6);
+        print_node("<While-Loop>");
+    }
     ;
 
-/* Expressions */
+/* Expressions and TAC */
 expr:
-    expr OP_ADD term { print_node("+"); fprintf(ir_file, "ADD\n"); }
-    | expr OP_SUB term { print_node("-"); fprintf(ir_file, "SUB\n"); }
-    | term
+    expr OP_ADD term { print_node("+"); fprintf(ir_file, "ADD\n"); $$ = "temp"; }
+    | expr OP_SUB term { print_node("-"); fprintf(ir_file, "SUB\n"); $$ = "temp"; }
+    | term { $$ = $1; }
     ;
 
 term:
-    term OP_MUL factor { print_node("*"); fprintf(ir_file, "MUL\n"); }
-    | term OP_DIV factor { print_node("/"); fprintf(ir_file, "DIV\n"); }
-    | factor
+    term OP_MUL factor { print_node("*"); fprintf(ir_file, "MUL\n"); $$ = "temp"; }
+    | term OP_DIV factor { print_node("/"); fprintf(ir_file, "DIV\n"); $$ = "temp"; }
+    | factor { $$ = $1; }
     ;
 
 factor:
@@ -141,19 +171,21 @@ factor:
         print_node($1); 
         fprintf(usage_file, "%s\n", $1); 
         fprintf(ir_file, "PUSH %s\n", $1); 
+        $$ = $1;
     }
     | NUMBER { 
         print_node($1); 
         fprintf(ir_file, "PUSH %s\n", $1); 
+        $$ = $1;
     }
-    | LPAREN expr RPAREN
+    | LPAREN expr RPAREN { $$ = $2; }
     ;
 
 rel_expr:
-    expr OP_LT expr { print_node("<"); }
-    | expr OP_GT expr { print_node(">"); }
-    | expr OP_EQ expr { print_node("=="); }
-    | expr OP_NE expr { print_node("!="); }
+    expr OP_LT expr { print_node("<"); fprintf(ir_file, "LT\n"); $$ = "temp"; }
+    | expr OP_GT expr { print_node(">"); fprintf(ir_file, "GT\n"); $$ = "temp"; }
+    | expr OP_EQ expr { print_node("=="); fprintf(ir_file, "EQ\n"); $$ = "temp"; }
+    | expr OP_NE expr { print_node("!="); fprintf(ir_file, "NE\n"); $$ = "temp"; }
     ;
 
 %%
@@ -209,6 +241,6 @@ int main() {
     fclose(usage_file);
     fclose(ir_file);
 
-    printf("Phase 2 Complete. Files generated for Semantic and ICG phases.\n");
+    printf("Phase 2 Complete. Control flow and expressions finalized.\n");
     return 0;
 }
