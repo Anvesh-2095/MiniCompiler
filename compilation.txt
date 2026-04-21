@@ -6,10 +6,6 @@ yacc -d parser.y
 gcc y.tab.c -o parser
 ./parser < tokens.txt
 
-yacc -d parser.y
-gcc y.tab.c -o parser
-./parser < tokens.txt
-
 gcc semantic.c -o semantic
 ./semantic
 
